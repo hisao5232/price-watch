@@ -155,4 +155,40 @@ products.delete('/:id', async (c) => {
   return c.json({ message: '商品を削除しました' })
 })
 
+// PATCH /products/:id
+// alert_price や category を更新する
+products.patch('/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  const body = await c.req.json<{
+    alertPrice?: number
+    category?: string
+    isActive?: boolean
+  }>()
+
+  const product = await c.env.price_watch_db
+    .prepare('SELECT id FROM products WHERE id = ?')
+    .bind(id).first()
+
+  if (!product) {
+    return c.json({ error: '商品が見つかりません' }, 404)
+  }
+
+  await c.env.price_watch_db.prepare(`
+    UPDATE products
+    SET
+      alert_price = COALESCE(?, alert_price),
+      category = COALESCE(?, category),
+      is_active = COALESCE(?, is_active),
+      updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(
+    body.alertPrice ?? null,
+    body.category ?? null,
+    body.isActive !== undefined ? (body.isActive ? 1 : 0) : null,
+    id
+  ).run()
+
+  return c.json({ message: '更新しました' })
+})
+
 export default products

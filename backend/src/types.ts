@@ -3,6 +3,7 @@ export type Bindings = {
   price_watch_db: D1Database
   RAKUTEN_APP_ID: string
   RAKUTEN_ACCESS_KEY: string
+  DISCORD_WEBHOOK_URL: string
 }
 
 // 楽天APIのレスポンス型（必要なフィールドのみ）
