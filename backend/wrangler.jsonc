@@ -1,0 +1,22 @@
+{
+	// Workersの名前（Cloudflareダッシュボードに表示される）
+	"name": "price-watch-api",
+	// エントリーポイント
+	"main": "src/index.ts",
+	// 互換性日付（変更不要）
+	"compatibility_date": "2025-01-01",
+	// D1データベースのバインディング
+	"d1_databases": [
+		{
+			"binding": "price_watch_db",
+			"database_name": "price-watch-db",
+			"database_id": "0915daee-376b-4601-bf02-b177541a3b49"
+		}
+	],
+	// Cronトリガー：毎時0分に自動実行
+	"triggers": {
+		"crons": [
+			"0 * * * *"
+		]
+	}
+}

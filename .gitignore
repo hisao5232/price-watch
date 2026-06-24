@@ -1,0 +1,18 @@
+# Node.js
+node_modules/
+
+# Wrangler ローカルDB・キャッシュ（重要：本番DBのIDなどが含まれる）
+.wrangler/
+
+# ローカル開発用の環境変数（APIキーが入るので絶対にコミットしない）
+.dev.vars
+.env
+.env.local
+
+# Next.js ビルド成果物
+.next/
+out/
+
+# OS
+.DS_Store
+Thumbs.db

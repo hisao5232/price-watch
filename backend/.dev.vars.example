@@ -1,0 +1,5 @@
+# 楽天デベロッパーのアプリID
+RAKUTEN_APP_ID=your_app_id_here
+
+# 楽天デベロッパーのアクセスキー
+RAKUTEN_ACCESS_KEY=your_access_key_here
