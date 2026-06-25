@@ -8,7 +8,20 @@ const app = new Hono<{ Bindings: Bindings }>()
 
 // CORSミドルウェアを追加（フロントエンドからのリクエストを許可）
 app.use('*', cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: (origin) => {
+    // 許可するオリジンのリスト
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'https://price-watch.pages.dev',
+    ]
+
+    // 完全一致 または PagesのプレビューURL（*.price-watch.pages.dev）を許可
+    if (allowedOrigins.includes(origin)) return origin
+    if (origin.endsWith('.price-watch.pages.dev')) return origin
+
+    return null  // それ以外は拒否
+  },
   allowMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
   allowHeaders: ['Content-Type'],
 }))
