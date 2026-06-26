@@ -33,24 +33,29 @@ export async function searchItemByUrl(
   appId: string,
   accessKey: string
 ): Promise<RakutenItem | null> {
-  // URLからショップコードとJANコードを抽出
-  // 例: https://item.rakuten.co.jp/alpen/8205102144/
   const match = rakutenUrl.match(/item\.rakuten\.co\.jp\/([^/]+)\/([^/]+)/)
-  if (!match) return null
+  if (!match) {
+    console.error('URL parse failed:', rakutenUrl)  // ← 追加
+    return null
+  }
 
-  const shopCode = match[1]  // alpen
-  const janCode = match[2]   // 8205102144
+  const shopCode = match[1]
+  const janCode = match[2]
 
-  const url = new URL(RAKUTEN_API_BASE)
+  const url = new URL('https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260401')
   url.searchParams.set('applicationId', appId)
   url.searchParams.set('accessKey', accessKey)
-  url.searchParams.set('keyword', janCode)   // JANコードでキーワード検索
-  url.searchParams.set('shopCode', shopCode) // ショップを絞り込む
-  url.searchParams.set('hits', '1')          // 1件だけ取得
+  url.searchParams.set('keyword', janCode)
+  url.searchParams.set('shopCode', shopCode)
+  url.searchParams.set('hits', '1')
   url.searchParams.set('format', 'json')
+
+  console.log('Rakuten API URL:', url.toString())  // ← 追加
 
   const res = await fetch(url.toString())
   const data = await res.json() as RakutenSearchResponse
+
+  console.log('Rakuten API response:', JSON.stringify(data))  // ← 追加
 
   if (data.error || !data.Items?.length) return null
 
