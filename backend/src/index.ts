@@ -13,12 +13,11 @@ app.use('*', cors({
     const allowedOrigins = [
       'http://localhost:3000',
       'http://127.0.0.1:3000',
-      'https://price-watch.pages.dev',
+      'https://price-watch-lovat.vercel.app',
     ]
 
-    // 完全一致 または PagesのプレビューURL（*.price-watch.pages.dev）を許可
     if (allowedOrigins.includes(origin)) return origin
-    if (origin.endsWith('.price-watch.pages.dev')) return origin
+    if (origin?.endsWith('.vercel.app')) return origin  // Vercelプレビューも許可
 
     return null  // それ以外は拒否
   },
