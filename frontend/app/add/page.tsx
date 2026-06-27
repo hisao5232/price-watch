@@ -64,7 +64,7 @@ export default function AddPage() {
                 value={url}
                 onChange={e => setUrl(e.target.value)}
                 placeholder="https://item.rakuten.co.jp/..."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -78,7 +78,7 @@ export default function AddPage() {
                 value={category}
                 onChange={e => setCategory(e.target.value)}
                 placeholder="例: サッカー用品、スニーカー"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -94,7 +94,7 @@ export default function AddPage() {
                   value={alertPrice}
                   onChange={e => setAlertPrice(e.target.value)}
                   placeholder="この金額以下になったら通知"
-                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">
