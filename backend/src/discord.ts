@@ -1,6 +1,6 @@
 // Discord Webhook で通知を送る
 
-type NotificationType = 'price_drop' | 'back_in_stock' | 'sale_started' | 'alert_price'
+type NotificationType = 'price_drop' | 'back_in_stock' | 'out_of_stock' | 'sale_started' | 'alert_price'
 
 type NotifyParams = {
   type: NotificationType
@@ -17,6 +17,7 @@ type NotifyParams = {
 const COLORS = {
   price_drop: 0x3498db,    // 青：値下がり
   back_in_stock: 0x2ecc71, // 緑：在庫復活
+  out_of_stock: 0x95a5a6,   // グレー：在庫切れ
   sale_started: 0xe74c3c,  // 赤：セール開始
   alert_price: 0xf39c12,   // オレンジ：目標価格以下
 }
@@ -25,6 +26,7 @@ const COLORS = {
 const TITLES = {
   price_drop: '📉 価格が下がりました',
   back_in_stock: '✅ 在庫が復活しました',
+  out_of_stock: '❌ 在庫切れになりました',
   sale_started: '🔥 セールが始まりました',
   alert_price: '🎯 目標価格以下になりました',
 }

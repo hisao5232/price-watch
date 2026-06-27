@@ -1,23 +1,18 @@
 import type { Bindings } from './types'
-import { fetchItemByCode, isSale } from './rakuten'
+import { fetchItemByCode } from './rakuten'
 import { sendDiscordNotification } from './discord'
 
-// Cronトリガーから呼ばれるメイン処理
 export async function handleCron(env: Bindings): Promise<void> {
   console.log('Cron開始:', new Date().toISOString())
 
-  // is_active=1 の全商品を取得
   const { results: products } = await env.price_watch_db
     .prepare('SELECT * FROM products WHERE is_active = 1')
     .all()
 
   console.log(`追跡中の商品数: ${products.length}`)
 
-  // 商品ごとに順番に処理（並列にするとAPIレート制限に引っかかるため直列で実行）
   for (const product of products) {
     await processProduct(product as any, env)
-
-    // 楽天APIのレート制限対策：1秒待つ
     await sleep(1000)
   }
 
@@ -35,7 +30,6 @@ async function processProduct(
   },
   env: Bindings
 ): Promise<void> {
-  // 楽天APIから最新情報を取得
   const item = await fetchItemByCode(
     product.item_code,
     env.RAKUTEN_APP_ID,
@@ -49,11 +43,14 @@ async function processProduct(
 
   const currentPrice = item.itemPrice
   const currentInStock = item.availability === 1 ? 1 : 0
-  const currentIsSale = isSale(item) ? 1 : 0
+  const currentPointRate = item.pointRate
 
-  // 前回の価格履歴を取得
+  // セール判定：ポイント倍率が1より大きければセール中とみなす
+  const currentIsSale = currentPointRate > 1 ? 1 : 0
+
+  // 前回の履歴を取得（point_rateも含める）
   const prev = await env.price_watch_db.prepare(`
-    SELECT price, in_stock, is_sale
+    SELECT price, in_stock, is_sale, point_rate
     FROM price_history
     WHERE product_id = ?
     ORDER BY fetched_at DESC
@@ -62,27 +59,24 @@ async function processProduct(
     price: number
     in_stock: number
     is_sale: number
+    point_rate: number
   } | null
 
-  // 今回のスナップショットをD1に保存
+  // 今回のスナップショットを保存
   await env.price_watch_db.prepare(`
     INSERT INTO price_history (product_id, price, point_rate, in_stock, is_sale)
     VALUES (?, ?, ?, ?, ?)
   `).bind(
     product.id,
     currentPrice,
-    item.pointRate,
+    currentPointRate,
     currentInStock,
     currentIsSale
   ).run()
 
-  // Discord Webhookが設定されていない場合は通知をスキップ
   if (!env.DISCORD_WEBHOOK_URL) return
-
-  // 前回データがない場合は通知しない（初回登録時）
   if (!prev) return
 
-  // 変化を検知して通知
   const itemUrl = product.rakuten_url ?? item.itemUrl
   const imageUrl = product.image_url
 
@@ -95,20 +89,33 @@ async function processProduct(
       imageUrl,
       currentPrice,
       previousPrice: prev.price,
-      pointRate: item.pointRate,
+      pointRate: currentPointRate,
     })
 
-    // 通知ログを保存
     await env.price_watch_db.prepare(`
       INSERT INTO notifications (product_id, type, message)
       VALUES (?, 'price_drop', ?)
-    `).bind(
-      product.id,
-      `¥${prev.price} → ¥${currentPrice}`
-    ).run()
+    `).bind(product.id, `¥${prev.price} → ¥${currentPrice}`).run()
   }
 
-  // ② alert_price以下になった（前回はalert_price超だった場合のみ通知）
+  // ② ポイント還元が増えた（前回より倍率が上がった場合のみ通知）
+  if (currentPointRate > prev.point_rate) {
+    await sendDiscordNotification(env.DISCORD_WEBHOOK_URL, {
+      type: 'sale_started',
+      itemName: product.item_name,
+      itemUrl,
+      imageUrl,
+      currentPrice,
+      pointRate: currentPointRate,
+    })
+
+    await env.price_watch_db.prepare(`
+      INSERT INTO notifications (product_id, type, message)
+      VALUES (?, 'point_up', ?)
+    `).bind(product.id, `P${prev.point_rate}倍 → P${currentPointRate}倍`).run()
+  }
+
+  // ③ alert_price以下になった（前回はalert_price超だった場合のみ通知）
   if (
     product.alert_price &&
     currentPrice <= product.alert_price &&
@@ -121,11 +128,11 @@ async function processProduct(
       imageUrl,
       currentPrice,
       alertPrice: product.alert_price,
-      pointRate: item.pointRate,
+      pointRate: currentPointRate,
     })
   }
 
-  // ③ 在庫が復活した（前回在庫なし → 今回在庫あり）
+  // ④ 在庫が復活した（なし → あり）
   if (currentInStock === 1 && prev.in_stock === 0) {
     await sendDiscordNotification(env.DISCORD_WEBHOOK_URL, {
       type: 'back_in_stock',
@@ -133,7 +140,7 @@ async function processProduct(
       itemUrl,
       imageUrl,
       currentPrice,
-      pointRate: item.pointRate,
+      pointRate: currentPointRate,
     })
 
     await env.price_watch_db.prepare(`
@@ -142,25 +149,24 @@ async function processProduct(
     `).bind(product.id).run()
   }
 
-  // ④ セールが始まった（前回セールなし → 今回セールあり）
-  if (currentIsSale === 1 && prev.is_sale === 0) {
+  // ⑤ 在庫がなくなった（あり → なし）
+  if (currentInStock === 0 && prev.in_stock === 1) {
     await sendDiscordNotification(env.DISCORD_WEBHOOK_URL, {
-      type: 'sale_started',
+      type: 'out_of_stock',
       itemName: product.item_name,
       itemUrl,
       imageUrl,
       currentPrice,
-      pointRate: item.pointRate,
+      pointRate: currentPointRate,
     })
 
     await env.price_watch_db.prepare(`
       INSERT INTO notifications (product_id, type, message)
-      VALUES (?, 'sale', 'セール開始')
+      VALUES (?, 'out_of_stock', '在庫切れ')
     `).bind(product.id).run()
   }
 }
 
-// 指定ミリ秒待機するユーティリティ
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
