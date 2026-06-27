@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { getProductDetail } from '@/lib/api'
 import type { ProductDetail } from '@/lib/types'
+import PriceChart from '@/components/PriceChart'
 
 export default function ProductDetailPage() {
   const params = useParams()
@@ -156,6 +157,14 @@ export default function ProductDetailPage() {
                     </p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* 価格推移グラフ */}
+            {detail.history.length >= 2 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">価格推移</h3>
+                <PriceChart history={detail.history} />
               </div>
             )}
 
