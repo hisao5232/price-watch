@@ -126,7 +126,7 @@ export default function ProductDetailPage() {
                       rel="noopener noreferrer"
                       className="text-xs text-blue-500 hover:underline mt-1 inline-block"
                     >
-                      楽天で見る →
+                      {detail.product.rakuten_url.includes('yahoo.co.jp') ? 'Yahoo!で見る →' : '楽天で見る →'}
                     </a>
                   )}
                 </div>

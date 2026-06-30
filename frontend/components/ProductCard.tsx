@@ -102,7 +102,7 @@ export default function ProductCard({ product, onDelete }: Props) {
                   rel="noopener noreferrer"
                   className="text-xs text-blue-500 hover:underline"
                 >
-                  楽天で見る
+                  {product.rakuten_url.includes('yahoo.co.jp') ? 'Yahoo!で見る' : '楽天で見る'}
                 </a>
               )}
               <button
