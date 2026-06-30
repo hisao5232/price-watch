@@ -1,14 +1,15 @@
 -- 商品マスタ
 CREATE TABLE IF NOT EXISTS products (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  item_code   TEXT NOT NULL UNIQUE,   -- 楽天のitemCode（例: "shop123:item456"）
+  item_code   TEXT NOT NULL UNIQUE,
   shop_code   TEXT NOT NULL,
   item_name   TEXT,
   image_url   TEXT,
   rakuten_url TEXT,
-  category    TEXT,                   -- ユーザーが自由につけるグループ名
-  alert_price INTEGER,                -- この金額以下になったらDiscord通知
-  is_active   INTEGER DEFAULT 1,      -- 0にすると追跡停止
+  category    TEXT,
+  alert_price INTEGER,
+  is_active   INTEGER DEFAULT 1,
+  source      TEXT DEFAULT 'rakuten',
   created_at  TEXT DEFAULT (datetime('now')),
   updated_at  TEXT DEFAULT (datetime('now'))
 );

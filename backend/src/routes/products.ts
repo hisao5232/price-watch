@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { fetchItemByCode, searchItemByUrl, isSale } from '../rakuten'
+import { searchYahooItemByUrl, getYahooPointRate } from '../yahoo'
 
 const products = new Hono<{ Bindings: Bindings }>()
 
@@ -37,93 +38,113 @@ products.get('/', async (c) => {
 products.post('/', async (c) => {
   const body = await c.req.json<{
     rakutenUrl: string
+    yahooUrl?: string
     category?: string
     alertPrice?: number
   }>()
 
-  if (!body.rakutenUrl) {
-    return c.json({ error: 'rakutenUrl は必須です' }, 400)
+  // URLの種類を判定
+  const isYahoo = !!body.yahooUrl || body.rakutenUrl?.includes('store.shopping.yahoo.co.jp')
+  const inputUrl = body.yahooUrl ?? body.rakutenUrl
+
+  if (!inputUrl) {
+    return c.json({ error: 'URLは必須です' }, 400)
   }
 
-  // 楽天URLからitemCodeを検索
-  const item = await searchItemByUrl(
-    body.rakutenUrl,
-    c.env.RAKUTEN_APP_ID,
-    c.env.RAKUTEN_ACCESS_KEY
-  )
+  let itemCode: string
+  let shopCode: string
+  let itemName: string
+  let imageUrl: string | null
+  let itemUrl: string
+  let price: number
+  let inStock: number
+  let pointRate: number
+  let isSaleFlag: number
+  let source: string // 'rakuten' or 'yahoo'
 
-  if (!item) {
-    return c.json({ error: '商品が見つかりませんでした' }, 404)
+  if (isYahoo) {
+    const item = await searchYahooItemByUrl(inputUrl, c.env.YAHOO_SEARCH_CLIENT_ID)
+    if (!item) return c.json({ error: '商品が見つかりませんでした' }, 404)
+
+    // Yahoo!のcodeは "shopId_itemCode" 形式なので保存用に使う
+    itemCode = item.code
+    shopCode = item.seller.sellerId
+    itemName = item.name
+    imageUrl = item.image?.medium ?? null
+    itemUrl = item.url
+    price = item.price
+    inStock = item.inStock ? 1 : 0   // booleanを数値に変換
+    pointRate = getYahooPointRate(item)
+    isSaleFlag = pointRate > 1 ? 1 : 0
+    source = 'yahoo'
   }
+   else {
+    // 楽天の場合
+    const item = await searchItemByUrl(inputUrl, c.env.RAKUTEN_APP_ID, c.env.RAKUTEN_ACCESS_KEY)
+    if (!item) return c.json({ error: '商品が見つかりませんでした' }, 404)
 
-  // itemCodeのショップコードを取り出す
-  // itemCode は "shopCode:itemId" の形式
-  const shopCode = item.itemCode.split(':')[0]
+    itemCode = item.itemCode
+    shopCode = item.itemCode.split(':')[0]
+    itemName = item.itemName
+    imageUrl = item.smallImageUrls?.[0]?.imageUrl ?? null
+    itemUrl = item.itemUrl
+    price = item.itemPrice
+    inStock = item.availability === 1 ? 1 : 0
+    pointRate = item.pointRate
+    isSaleFlag = isSale(item) ? 1 : 0
+    source = 'rakuten'
+  }
 
   // 既に登録済みかチェック
   const existing = await c.env.price_watch_db
     .prepare('SELECT id FROM products WHERE item_code = ?')
-    .bind(item.itemCode)
+    .bind(itemCode)
     .first()
 
   if (existing) {
     return c.json({ error: 'この商品は既に登録されています' }, 409)
   }
 
-  // productsテーブルに保存
+  // productsテーブルに保存（sourceカラムが必要）
   const { meta } = await c.env.price_watch_db.prepare(`
-    INSERT INTO products (item_code, shop_code, item_name, image_url, rakuten_url, category, alert_price)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO products (item_code, shop_code, item_name, image_url, rakuten_url, category, alert_price, source)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
-    item.itemCode,
+    itemCode,
     shopCode,
-    item.itemName,
-    item.smallImageUrls?.[0]?.imageUrl ?? null,
-    item.itemUrl,
+    itemName,
+    imageUrl,
+    itemUrl,
     body.category ?? null,
-    body.alertPrice ?? null
+    body.alertPrice ?? null,
+    source
   ).run()
 
   const productId = meta.last_row_id
 
-  // 最初の価格スナップショットも保存
+  // 最初のスナップショット保存
   await c.env.price_watch_db.prepare(`
     INSERT INTO price_history (product_id, price, point_rate, in_stock, is_sale)
     VALUES (?, ?, ?, ?, ?)
-  `).bind(
-    productId,
-    item.itemPrice,
-    item.pointRate,
-    item.availability === 1 ? 1 : 0,
-    isSale(item) ? 1 : 0
-  ).run()
+  `).bind(productId, price, pointRate, inStock, isSaleFlag).run()
 
   return c.json({
     id: productId,
-    itemCode: item.itemCode,
-    itemName: item.itemName,
-    price: item.itemPrice,
-    inStock: item.availability === 1,
+    itemCode,
+    itemName,
+    price,
+    inStock: inStock === 1,
+    source,
     message: '商品を登録しました',
   }, 201)
 })
 
 // GET /products/:id
-// 商品詳細 + 価格履歴（直近30件）
 products.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const db = c.env.price_watch_db
-
-  // 商品情報を取得
-  const product = await db.prepare(
-    'SELECT * FROM products WHERE id = ?'
-  ).bind(id).first()
-
-  if (!product) {
-    return c.json({ error: '商品が見つかりません' }, 404)
-  }
-
-  // 価格履歴（直近30件）を取得
+  const product = await db.prepare('SELECT * FROM products WHERE id = ?').bind(id).first()
+  if (!product) return c.json({ error: '商品が見つかりません' }, 404)
   const { results: history } = await db.prepare(`
     SELECT price, point_rate, in_stock, is_sale, fetched_at
     FROM price_history
@@ -131,32 +152,20 @@ products.get('/:id', async (c) => {
     ORDER BY fetched_at DESC
     LIMIT 30
   `).bind(id).all()
-
   return c.json({ product, history })
 })
 
 // DELETE /products/:id
-// 商品を削除（price_historyはON DELETE CASCADEで自動削除）
 products.delete('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-
   const product = await c.env.price_watch_db
-    .prepare('SELECT id FROM products WHERE id = ?')
-    .bind(id).first()
-
-  if (!product) {
-    return c.json({ error: '商品が見つかりません' }, 404)
-  }
-
-  await c.env.price_watch_db
-    .prepare('DELETE FROM products WHERE id = ?')
-    .bind(id).run()
-
+    .prepare('SELECT id FROM products WHERE id = ?').bind(id).first()
+  if (!product) return c.json({ error: '商品が見つかりません' }, 404)
+  await c.env.price_watch_db.prepare('DELETE FROM products WHERE id = ?').bind(id).run()
   return c.json({ message: '商品を削除しました' })
 })
 
 // PATCH /products/:id
-// alert_price や category を更新する
 products.patch('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const body = await c.req.json<{
@@ -164,15 +173,9 @@ products.patch('/:id', async (c) => {
     category?: string
     isActive?: boolean
   }>()
-
   const product = await c.env.price_watch_db
-    .prepare('SELECT id FROM products WHERE id = ?')
-    .bind(id).first()
-
-  if (!product) {
-    return c.json({ error: '商品が見つかりません' }, 404)
-  }
-
+    .prepare('SELECT id FROM products WHERE id = ?').bind(id).first()
+  if (!product) return c.json({ error: '商品が見つかりません' }, 404)
   await c.env.price_watch_db.prepare(`
     UPDATE products
     SET
@@ -187,7 +190,6 @@ products.patch('/:id', async (c) => {
     body.isActive !== undefined ? (body.isActive ? 1 : 0) : null,
     id
   ).run()
-
   return c.json({ message: '更新しました' })
 })
 

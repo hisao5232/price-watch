@@ -14,8 +14,8 @@ export default function AddPage() {
 
   const handleSubmit = async () => {
     // 楽天URLのバリデーション
-    if (!url.includes('item.rakuten.co.jp')) {
-      setError('楽天市場の商品URLを入力してください')
+    if (!url.includes('item.rakuten.co.jp') && !url.includes('store.shopping.yahoo.co.jp')) {
+      setError('楽天市場またはYahoo!ショッピングの商品URLを入力してください')
       return
     }
 
@@ -57,13 +57,13 @@ export default function AddPage() {
             {/* 楽天URL */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                楽天市場の商品URL <span className="text-red-500">*</span>
+                商品URL <span className="text-red-500">*</span>
               </label>
               <input
                 type="url"
                 value={url}
                 onChange={e => setUrl(e.target.value)}
-                placeholder="https://item.rakuten.co.jp/..."
+                placeholder="楽天またはYahoo!ショッピングの商品URL"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

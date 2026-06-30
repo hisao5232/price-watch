@@ -1,5 +1,6 @@
 import type { Bindings } from './types'
 import { fetchItemByCode } from './rakuten'
+import { fetchYahooItemByCode, getYahooPointRate } from './yahoo'
 import { sendDiscordNotification } from './discord'
 
 export async function handleCron(env: Bindings): Promise<void> {
@@ -27,28 +28,40 @@ async function processProduct(
     image_url: string | null
     rakuten_url: string | null
     alert_price: number | null
+    source: string
   },
   env: Bindings
 ): Promise<void> {
-  const item = await fetchItemByCode(
-    product.item_code,
-    env.RAKUTEN_APP_ID,
-    env.RAKUTEN_ACCESS_KEY
-  )
+  let currentPrice: number
+  let currentInStock: number
+  let currentPointRate: number
+  let itemUrl: string
 
-  if (!item) {
-    console.error(`商品取得失敗: ${product.item_code}`)
-    return
+  // ソースによって楽天APIかYahoo!APIかを切り替える
+  if (product.source === 'yahoo') {
+    const item = await fetchYahooItemByCode(product.item_code, env.YAHOO_SEARCH_CLIENT_ID)
+    if (!item) {
+      console.error(`Yahoo商品取得失敗: ${product.item_code}`)
+      return
+    }
+    currentPrice = item.price
+    currentInStock = item.inStock ? 1 : 0
+    currentPointRate = getYahooPointRate(item)
+    itemUrl = item.url
+  } else {
+    const item = await fetchItemByCode(product.item_code, env.RAKUTEN_APP_ID, env.RAKUTEN_ACCESS_KEY)
+    if (!item) {
+      console.error(`楽天商品取得失敗: ${product.item_code}`)
+      return
+    }
+    currentPrice = item.itemPrice
+    currentInStock = item.availability === 1 ? 1 : 0
+    currentPointRate = item.pointRate
+    itemUrl = item.itemUrl
   }
 
-  const currentPrice = item.itemPrice
-  const currentInStock = item.availability === 1 ? 1 : 0
-  const currentPointRate = item.pointRate
-
-  // セール判定：ポイント倍率が1より大きければセール中とみなす
   const currentIsSale = currentPointRate > 1 ? 1 : 0
 
-  // 前回の履歴を取得（point_rateも含める）
   const prev = await env.price_watch_db.prepare(`
     SELECT price, in_stock, is_sale, point_rate
     FROM price_history
@@ -62,22 +75,15 @@ async function processProduct(
     point_rate: number
   } | null
 
-  // 今回のスナップショットを保存
   await env.price_watch_db.prepare(`
     INSERT INTO price_history (product_id, price, point_rate, in_stock, is_sale)
     VALUES (?, ?, ?, ?, ?)
-  `).bind(
-    product.id,
-    currentPrice,
-    currentPointRate,
-    currentInStock,
-    currentIsSale
-  ).run()
+  `).bind(product.id, currentPrice, currentPointRate, currentInStock, currentIsSale).run()
 
   if (!env.DISCORD_WEBHOOK_URL) return
   if (!prev) return
 
-  const itemUrl = product.rakuten_url ?? item.itemUrl
+  const finalUrl = product.rakuten_url ?? itemUrl
   const imageUrl = product.image_url
 
   // ① 価格が下がった
@@ -85,7 +91,7 @@ async function processProduct(
     await sendDiscordNotification(env.DISCORD_WEBHOOK_URL, {
       type: 'price_drop',
       itemName: product.item_name,
-      itemUrl,
+      itemUrl: finalUrl,
       imageUrl,
       currentPrice,
       previousPrice: prev.price,
@@ -98,12 +104,12 @@ async function processProduct(
     `).bind(product.id, `¥${prev.price} → ¥${currentPrice}`).run()
   }
 
-  // ② ポイント還元が増えた（前回より倍率が上がった場合のみ通知）
+  // ② ポイント還元が増えた
   if (currentPointRate > prev.point_rate) {
     await sendDiscordNotification(env.DISCORD_WEBHOOK_URL, {
       type: 'sale_started',
       itemName: product.item_name,
-      itemUrl,
+      itemUrl: finalUrl,
       imageUrl,
       currentPrice,
       pointRate: currentPointRate,
@@ -115,7 +121,7 @@ async function processProduct(
     `).bind(product.id, `P${prev.point_rate}倍 → P${currentPointRate}倍`).run()
   }
 
-  // ③ alert_price以下になった（前回はalert_price超だった場合のみ通知）
+  // ③ alert_price以下になった
   if (
     product.alert_price &&
     currentPrice <= product.alert_price &&
@@ -124,7 +130,7 @@ async function processProduct(
     await sendDiscordNotification(env.DISCORD_WEBHOOK_URL, {
       type: 'alert_price',
       itemName: product.item_name,
-      itemUrl,
+      itemUrl: finalUrl,
       imageUrl,
       currentPrice,
       alertPrice: product.alert_price,
@@ -132,12 +138,12 @@ async function processProduct(
     })
   }
 
-  // ④ 在庫が復活した（なし → あり）
+  // ④ 在庫が復活した
   if (currentInStock === 1 && prev.in_stock === 0) {
     await sendDiscordNotification(env.DISCORD_WEBHOOK_URL, {
       type: 'back_in_stock',
       itemName: product.item_name,
-      itemUrl,
+      itemUrl: finalUrl,
       imageUrl,
       currentPrice,
       pointRate: currentPointRate,
@@ -149,12 +155,12 @@ async function processProduct(
     `).bind(product.id).run()
   }
 
-  // ⑤ 在庫がなくなった（あり → なし）
+  // ⑤ 在庫がなくなった
   if (currentInStock === 0 && prev.in_stock === 1) {
     await sendDiscordNotification(env.DISCORD_WEBHOOK_URL, {
       type: 'out_of_stock',
       itemName: product.item_name,
-      itemUrl,
+      itemUrl: finalUrl,
       imageUrl,
       currentPrice,
       pointRate: currentPointRate,

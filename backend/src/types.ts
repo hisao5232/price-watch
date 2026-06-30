@@ -4,6 +4,8 @@ export type Bindings = {
   RAKUTEN_APP_ID: string
   RAKUTEN_ACCESS_KEY: string
   DISCORD_WEBHOOK_URL: string
+  YAHOO_CLIENT_ID: string
+  YAHOO_SEARCH_CLIENT_ID: string
 }
 
 // 楽天APIのレスポンス型（必要なフィールドのみ）
@@ -24,6 +26,35 @@ export type RakutenSearchResponse = {
   Items: { Item: RakutenItem }[]
   error?: string
   error_description?: string
+}
+
+// Yahoo!ショッピング商品検索APIのレスポンス型
+export type YahooItem = {
+  code: string              // "shopId_itemCode" 形式
+  name: string
+  price: number
+  inStock: boolean          // boolean（楽天は number）
+  image: {
+    small: string
+    medium: string
+  }
+  url: string
+  seller: {
+    sellerId: string
+    name: string
+  }
+  point: {
+    amount: number
+    bonusAmount: number
+    lyLimitedBonusAmount: number
+    lyLimitedBonusTimes: number   // ポイント倍率
+  }
+}
+
+export type YahooSearchResponse = {
+  totalResultsAvailable: number
+  hits: YahooItem[]
+  error?: string
 }
 
 // DBのproductsテーブルの型
