@@ -10,14 +10,15 @@ export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // 選択中のカテゴリタブ（nullは「すべて」）
+  const [activeCategory, setActiveCategory] = useState<string>('すべて')
 
-  // 商品一覧を取得
   const fetchProducts = async () => {
     try {
       setLoading(true)
       const data = await getProducts()
       setProducts(data)
-    } catch (e) {
+    } catch {
       setError('商品一覧の取得に失敗しました')
     } finally {
       setLoading(false)
@@ -28,7 +29,6 @@ export default function HomePage() {
     fetchProducts()
   }, [])
 
-  // 商品削除
   const handleDelete = async (id: number) => {
     try {
       await deleteProduct(id)
@@ -37,6 +37,28 @@ export default function HomePage() {
       alert('削除に失敗しました')
     }
   }
+
+  // カテゴリ一覧を動的に生成
+  // categoryがnullの商品は「未分類」として扱う
+  const categories = [
+    'すべて',
+    // Setで重複を排除し、nullは「未分類」に変換
+    ...Array.from(new Set(products.map(p => p.category ?? '未分類')))
+  ]
+
+  // 表示する商品を絞り込んで価格安い順にソート
+  const filteredProducts = products
+    .filter(p => {
+      if (activeCategory === 'すべて') return true
+      if (activeCategory === '未分類') return p.category === null
+      return p.category === activeCategory
+    })
+    // price が null の場合は最後尾に並べる
+    .sort((a, b) => {
+      if (a.price === null) return 1
+      if (b.price === null) return -1
+      return a.price - b.price
+    })
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -51,13 +73,43 @@ export default function HomePage() {
             + 商品追加
           </Link>
         </div>
+
+        {/* カテゴリタブ（商品が1件以上あるときだけ表示） */}
+        {!loading && products.length > 0 && (
+          <div className="max-w-2xl mx-auto px-4 pb-2 flex gap-2 overflow-x-auto">
+            {categories.map(category => (
+              <button
+                key={category}
+                onClick={() => setActiveCategory(category)}
+                className={`shrink-0 text-xs px-3 py-1 rounded-full border transition-colors ${
+                  activeCategory === category
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'
+                }`}
+              >
+                {category}
+                {/* タブにその件数を表示 */}
+                <span className="ml-1 opacity-70">
+                  ({category === 'すべて'
+                    ? products.length
+                    : products.filter(p =>
+                        category === '未分類'
+                          ? p.category === null
+                          : p.category === category
+                      ).length
+                  })
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-4">
         {/* 件数表示 */}
         {!loading && (
           <p className="text-sm text-gray-500 mb-3">
-            追跡中: {products.length}件
+            {activeCategory === 'すべて' ? '追跡中' : activeCategory}: {filteredProducts.length}件
           </p>
         )}
 
@@ -86,9 +138,9 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* 商品一覧 */}
+        {/* 商品一覧（絞り込み済み・価格安い順） */}
         <div className="flex flex-col gap-3">
-          {products.map(product => (
+          {filteredProducts.map(product => (
             <ProductCard
               key={product.id}
               product={product}

@@ -70,6 +70,14 @@ export default function ProductCard({ product, onDelete }: Props) {
                 P{product.point_rate}倍
               </span>
             )}
+            {/* ポイント還元額を追加 */}
+            {/* product.price と point_rate から還元額を計算して表示 */}
+            {product.price && product.point_rate && product.point_rate >= 1 && (
+              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                {/* Math.floor で小数点以下を切り捨て */}
+                P還元 ¥{Math.floor(product.price * (product.point_rate / 100)).toLocaleString()}
+              </span>
+            )}
             {product.category && (
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                 {product.category}

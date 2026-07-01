@@ -14,6 +14,7 @@ app.use('*', cors({
       'http://localhost:3000',
       'http://127.0.0.1:3000',
       'https://price-watch-lovat.vercel.app',
+      'https://price-watch.go-pro-world.net',
     ]
 
     if (allowedOrigins.includes(origin)) return origin
