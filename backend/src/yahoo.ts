@@ -65,3 +65,10 @@ export async function fetchYahooItemByCode(
 export function getYahooPointRate(item: YahooItem): number {
   return item.point?.lyLimitedBonusTimes ?? 1
 }
+
+// セール判定（割引率があればセール中）
+export function isYahooSale(item: YahooItem): boolean {
+  if (item.premiumDiscountRate && item.premiumDiscountRate > 0) return true
+  if (item.priceLabel?.fixedPrice && item.priceLabel.fixedPrice > item.price) return true
+  return false
+}

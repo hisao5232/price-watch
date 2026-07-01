@@ -34,6 +34,7 @@ export type YahooItem = {
   name: string
   price: number
   inStock: boolean          // boolean（楽天は number）
+  headLine: string              // セール見出し（例: "21%OFF"）
   image: {
     small: string
     medium: string
@@ -48,6 +49,11 @@ export type YahooItem = {
     bonusAmount: number
     lyLimitedBonusAmount: number
     lyLimitedBonusTimes: number   // ポイント倍率
+  }
+  premiumDiscountRate: number | null  // 割引率（nullならセールなし）
+  priceLabel: {
+    defaultPrice: number
+    fixedPrice: number | null         // 定価（nullなら通常価格）
   }
 }
 

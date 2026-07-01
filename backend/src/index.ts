@@ -25,6 +25,23 @@ app.use('*', cors({
   allowHeaders: ['Content-Type'],
 }))
 
+// Yahoo!レスポンス確認用（確認後削除）
+app.get('/test-yahoo-full', async (c) => {
+  const clientId = c.env.YAHOO_SEARCH_CLIENT_ID
+
+  const url = new URL('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch')
+  url.searchParams.set('appid', clientId)
+  url.searchParams.set('query', '1103a112-001')
+  url.searchParams.set('seller_id', 'sports-box')
+  url.searchParams.set('results', '1')
+
+  const res = await fetch(url.toString())
+  const data = await res.json() as any
+
+  // レスポンス全体をそのまま返す
+  return c.json(data)
+})
+
 // ヘルスチェック
 app.get('/', (c) => {
   return c.json({ status: 'ok', message: 'price-watch API is running' })

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Bindings } from '../types'
 import { fetchItemByCode, searchItemByUrl, isSale } from '../rakuten'
-import { searchYahooItemByUrl, getYahooPointRate } from '../yahoo'
+import { fetchYahooItemByCode,searchYahooItemByUrl, getYahooPointRate, isYahooSale } from '../yahoo'
 
 const products = new Hono<{ Bindings: Bindings }>()
 
@@ -66,16 +66,15 @@ products.post('/', async (c) => {
     const item = await searchYahooItemByUrl(inputUrl, c.env.YAHOO_SEARCH_CLIENT_ID)
     if (!item) return c.json({ error: '商品が見つかりませんでした' }, 404)
 
-    // Yahoo!のcodeは "shopId_itemCode" 形式なので保存用に使う
     itemCode = item.code
     shopCode = item.seller.sellerId
     itemName = item.name
     imageUrl = item.image?.medium ?? null
     itemUrl = item.url
     price = item.price
-    inStock = item.inStock ? 1 : 0   // booleanを数値に変換
+    inStock = item.inStock ? 1 : 0
     pointRate = getYahooPointRate(item)
-    isSaleFlag = pointRate > 1 ? 1 : 0
+    isSaleFlag = isYahooSale(item) ? 1 : 0  // ← 修正
     source = 'yahoo'
   }
    else {

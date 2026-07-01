@@ -1,6 +1,6 @@
 import type { Bindings } from './types'
 import { fetchItemByCode } from './rakuten'
-import { fetchYahooItemByCode, getYahooPointRate } from './yahoo'
+import { fetchYahooItemByCode, getYahooPointRate, isYahooSale } from './yahoo'
 import { sendDiscordNotification } from './discord'
 
 export async function handleCron(env: Bindings): Promise<void> {
@@ -35,6 +35,7 @@ async function processProduct(
   let currentPrice: number
   let currentInStock: number
   let currentPointRate: number
+  let currentIsSale: number
   let itemUrl: string
 
   // ソースによって楽天APIかYahoo!APIかを切り替える
@@ -47,6 +48,7 @@ async function processProduct(
     currentPrice = item.price
     currentInStock = item.inStock ? 1 : 0
     currentPointRate = getYahooPointRate(item)
+    currentIsSale = isYahooSale(item) ? 1 : 0
     itemUrl = item.url
   } else {
     const item = await fetchItemByCode(product.item_code, env.RAKUTEN_APP_ID, env.RAKUTEN_ACCESS_KEY)
@@ -57,10 +59,9 @@ async function processProduct(
     currentPrice = item.itemPrice
     currentInStock = item.availability === 1 ? 1 : 0
     currentPointRate = item.pointRate
+    currentIsSale = currentPointRate > 1 ? 1 : 0
     itemUrl = item.itemUrl
   }
-
-  const currentIsSale = currentPointRate > 1 ? 1 : 0
 
   const prev = await env.price_watch_db.prepare(`
     SELECT price, in_stock, is_sale, point_rate
