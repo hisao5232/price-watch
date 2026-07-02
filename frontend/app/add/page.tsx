@@ -8,12 +8,12 @@ export default function AddPage() {
   const router = useRouter()
   const [url, setUrl] = useState('')
   const [category, setCategory] = useState('')
-  const [alertPrice, setAlertPrice] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // alertPrice の state を削除
+
   const handleSubmit = async () => {
-    // 楽天URLのバリデーション
     if (!url.includes('item.rakuten.co.jp') && !url.includes('store.shopping.yahoo.co.jp')) {
       setError('楽天市場またはYahoo!ショッピングの商品URLを入力してください')
       return
@@ -25,7 +25,7 @@ export default function AddPage() {
       await addProduct({
         rakutenUrl: url,
         category: category || undefined,
-        alertPrice: alertPrice ? Number(alertPrice) : undefined,
+        // alertPrice を削除
       })
       router.push('/')
     } catch (e: any) {
@@ -37,13 +37,9 @@ export default function AddPage() {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      {/* ヘッダー */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button
-            onClick={() => router.back()}
-            className="text-gray-500 hover:text-gray-700"
-          >
+          <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-700">
             ← 戻る
           </button>
           <h1 className="text-lg font-bold text-gray-900">商品を追加</h1>
@@ -54,7 +50,7 @@ export default function AddPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex flex-col gap-4">
 
-            {/* 楽天URL */}
+            {/* 商品URL */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 商品URL <span className="text-red-500">*</span>
@@ -82,24 +78,9 @@ export default function AddPage() {
               />
             </div>
 
-            {/* 目標価格 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                目標価格（任意）
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">¥</span>
-                <input
-                  type="number"
-                  value={alertPrice}
-                  onChange={e => setAlertPrice(e.target.value)}
-                  placeholder="この金額以下になったら通知"
-                  className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                設定した価格以下になるとDiscordに通知されます
-              </p>
+            {/* 目標価格の代わりに通知の説明を表示 */}
+            <div className="bg-blue-50 rounded-lg px-3 py-2 text-xs text-blue-700">
+              💬 価格が変動するとDiscordに通知されます
             </div>
 
             {/* エラー */}
